@@ -1,0 +1,48 @@
+name: Convert AdGuard Filters
+
+on:
+  schedule:
+    - cron: '0 10 * * 6'  # Every Saturday at 10:00 UTC
+  workflow_dispatch:        # Manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run convert.py
+        run: python3 convert.py
+
+      - name: Delete existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+
+      - name: Create release and upload files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DATE=$(date '+%Y-%m-%d')
+          gh release create latest \
+            format/diversion/*.txt \
+            --title "AdGuard Diversion Filters" \
+            --notes "AdGuard DNS filters converted to DNSMasq/Diversion format.
+
+          Last updated: $DATE
+
+          Files:
+          - **filter-base.txt** — AdGuard DNS base filter
+          - **filter-ru.txt** — Russian adservers
+          - **filter-de.txt** — German adservers"
