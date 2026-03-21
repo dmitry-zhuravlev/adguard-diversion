@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -24,25 +26,31 @@ jobs:
       - name: Run convert.py
         run: python3 convert.py
 
-      - name: Delete existing release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Publish to gh-pages branch
         run: |
-          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-
-      - name: Create release and upload files
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          DATE=$(date '+%Y-%m-%d')
-          gh release create latest \
-            format/diversion/*.txt \
-            --title "AdGuard Diversion Filters" \
-            --notes "AdGuard DNS filters converted to DNSMasq/Diversion format.
-
-          Last updated: $DATE
-
-          Files:
-          - **filter-base.txt** — AdGuard DNS base filter
-          - **filter-ru.txt** — Russian adservers
-          - **filter-de.txt** — German adservers"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          
+          # Create orphan gh-pages branch with only the txt files
+          mkdir -p /tmp/pages
+          cp format/diversion/*.txt /tmp/pages/
+          DATE=$(date '+%Y-%m-%d %H:%M UTC')
+          echo "# AdGuard Diversion Filters" > /tmp/pages/index.md
+          echo "" >> /tmp/pages/index.md
+          echo "Last updated: $DATE" >> /tmp/pages/index.md
+          echo "" >> /tmp/pages/index.md
+          for f in /tmp/pages/*.txt; do
+            NAME=$(basename "$f")
+            SIZE=$(wc -l < "$f")
+            echo "- [$NAME]($NAME) ($SIZE lines)" >> /tmp/pages/index.md
+          done
+          
+          cd /tmp/pages
+          git init
+          git checkout -b gh-pages
+          git add .
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -m "Update filters $DATE"
+          git remote add origin https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          git push -f origin gh-pages
